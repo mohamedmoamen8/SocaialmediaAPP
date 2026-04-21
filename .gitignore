@@ -1,0 +1,7 @@
+node_modules/
+package-lock.json
+dist/
+config/.env
+config/.env.development
+config/.env.production
+*.env

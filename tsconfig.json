@@ -1,0 +1,33 @@
+{
+  "compilerOptions": {
+    // File Layout
+    "rootDir": "./src",
+    "outDir": "./dist",
+
+    // Environment Settings
+    "module": "node16",
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "types": ["node"],
+
+    // Stricter Typechecking Options
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+
+    // Style Options
+    "noImplicitReturns": true,
+    "noImplicitOverride": true,
+    "noUnusedLocals": true,
+
+    // Recommended Options
+    "strict": true,
+    "verbatimModuleSyntax": false,
+    "isolatedModules": true,
+    "noUncheckedSideEffectImports": true,
+    "moduleDetection": "force",
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["src/**/*"],        // ✅ only compile src folder
+  "exclude": ["node_modules", "dist"]  // ✅ never compile these
+}
