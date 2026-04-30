@@ -42,7 +42,10 @@ const userSchema = new Schema<IUserDocument>(
     lastOtpSentAt: { type: Date, default: null },
     otpResendCount: { type: Number, default: 0 },
   },
-  { timestamps: true }
+  {  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+   }
 );
 
 userSchema.index(

@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { ZodSchema } from 'zod'; // ✅ remove ZodError
+import { ZodSchema } from 'zod'; 
 
 interface ValidationSchema {
   body?: ZodSchema;

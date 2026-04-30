@@ -90,7 +90,7 @@ export const sendOTPEmail = async (
   });
 };
 
-// ── Reset Password Email ───────────────────────────────────────────────────
+
 export const sendResetPasswordEmail = async (
   to: string,
   resetLink: string

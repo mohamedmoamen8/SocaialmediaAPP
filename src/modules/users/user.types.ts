@@ -1,3 +1,5 @@
+import { HydratedDocument } from "mongoose";
+
 export enum UserRole {
   user = 0,
   admin = 1,
@@ -39,6 +41,12 @@ export interface IUser {
   createdAt: Date;
   updatedAt: Date;
 }
+export type HUser =HydratedDocument<IUser>;
+export interface signupBodyDTO{
+  name:string
+  email:string
+
+}
 
 export interface IUserPayload {
   _id: string;
@@ -70,4 +78,10 @@ export interface IResetPasswordInput {
   email: string;
   token: string;
   newPassword: string;
+}
+export interface IGoogleAuthInput {
+  firstName: string;
+  lastName: string;
+  email: string;
+  isEmailConfirmed: boolean;
 }
