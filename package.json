@@ -3,6 +3,8 @@
   "version": "1.0.0",
   "main": "./dist/index.js",
   "scripts": {
+    "build": "tsc",
+    "start": "node --env-file=./config/.env ./dist/index.js",
     "start:build": "tsc --watch",
     "start:dev": "node --env-file=./config/.env --watch ./dist/index.js"
   },

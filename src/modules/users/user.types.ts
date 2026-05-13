@@ -38,6 +38,8 @@ export interface IUser {
   otpResendCount: number;
   emailOtp?: string | null;
   emailOTPExpires?: Date | null;
+  isDeleted: boolean;
+  deletedAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -84,4 +86,14 @@ export interface IGoogleAuthInput {
   lastName: string;
   email: string;
   isEmailConfirmed: boolean;
+}
+
+export interface IUpdateUserInput {
+  userId: string;
+  firstName?: string;
+  lastName?: string;
+  age?: number;
+  gender?: Gender;
+  profilePicture?: string;
+  coverPictures?: string[];
 }

@@ -3,6 +3,8 @@ import cors from 'cors';
 import { PORT } from './config';
 import userRouter from './modules/users/users.controller';
 import authRouter from './modules/auth/auth.controller';
+import postRouter from './modules/posts/posts.controller';
+import storyRouter from './modules/stories/stories.controller';
 //import { IAppError } from './utils/types/error';
 import {  AppError, NotFoundError } from './utils/errorHandle/resHandle';
 import redisClient from './utils/redisClient';
@@ -17,9 +19,11 @@ export const bootstrap = async() => {
     app.use(express.urlencoded({ extended: true }));
     app.get('/test', (req, res) => {
     res.json({ message: 'Express works ✅' });
-  });
+    });
     app.use('/auth', authRouter);
     app.use('/users', userRouter);
+    app.use('/posts', postRouter);
+    app.use('/stories', storyRouter);
     app.all('/{*path}', (req:Request, res:Response) => {
        throw new NotFoundError(`url not found: ${req.path}`);   
     });

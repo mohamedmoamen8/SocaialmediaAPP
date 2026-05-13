@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { ZodSchema } from 'zod'; 
 
-interface ValidationSchema {
+export interface ValidationSchema {
   body?: ZodSchema;
   params?: ZodSchema;
   query?: ZodSchema;

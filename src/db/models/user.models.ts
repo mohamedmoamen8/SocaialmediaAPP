@@ -1,16 +1,27 @@
-import mongoose, { Schema, Document, Model, Types } from 'mongoose';
+import bcrypt from 'bcrypt';
+import mongoose, { Schema, Document, Model, Query, Types } from 'mongoose';
 import { IUser, UserRole, Gender, ProviderTypes } from '../../modules/users/user.types';
+import { postModel } from './posts.models';
+import { storyModel } from './stories.models';
 
 
 export interface IUserDocument extends Omit<IUser, never>, Document {
   _id: Types.ObjectId; 
+  isDeleted: boolean;
+  deletedAt: Date | null;
+  softDelete(): Promise<IUserDocument>;
 }
 
-const userSchema = new Schema<IUserDocument>(
+interface IUserModel extends Model<IUserDocument> {
+  softDeleteById(userId: string | Types.ObjectId): Promise<IUserDocument | null>;
+  hardDeleteById(userId: string | Types.ObjectId): Promise<IUserDocument | null>;
+}
+
+const userSchema = new Schema<IUserDocument, IUserModel>(
   {
     firstName: { type: String, required: true, minlength: 2, maxlength: 50 },
     lastName: { type: String, required: true, minlength: 3, maxlength: 50 },
-    email: { type: String, required: true, unique: true },
+    email: { type: String, required: true, unique: true, lowercase: true, trim: true },
     password: { type: String, minlength: 8 },
     age: { type: Number },
     gender: {
@@ -41,6 +52,8 @@ const userSchema = new Schema<IUserDocument>(
     emailOTPExpires: { type: Date, default: null },
     lastOtpSentAt: { type: Date, default: null },
     otpResendCount: { type: Number, default: 0 },
+    isDeleted: { type: Boolean, default: false },
+    deletedAt: { type: Date, default: null },
   },
   {  timestamps: true,
   toJSON: { virtuals: true },
@@ -60,6 +73,76 @@ userSchema.virtual('fullName').get(function () {
   return `${this.firstName} ${this.lastName}`;
 });
 
-export const userModel: Model<IUserDocument> =
-  mongoose.models['User'] ||
-  mongoose.model<IUserDocument>('User', userSchema);
+userSchema.methods.softDelete = async function softDelete(): Promise<IUserDocument> {
+  this.isDeleted = true;
+  this.deletedAt = new Date();
+  await postModel.updateMany(
+    { id_owner: this._id },
+    { $set: { isDeleted: true, deletedAt: new Date() } }
+  ).setOptions({ withDeleted: true });
+  await storyModel.updateMany(
+    { id_owner: this._id },
+    { $set: { isDeleted: true, deletedAt: new Date() } }
+  ).setOptions({ withDeleted: true });
+  return await this.save();
+};
+
+userSchema.statics.softDeleteById = async function softDeleteById(
+  userId: string | Types.ObjectId
+) {
+  const user = await this.findById(userId);
+  if (!user) return null;
+  return await user.softDelete();
+};
+
+userSchema.statics.hardDeleteById = async function hardDeleteById(
+  userId: string | Types.ObjectId
+) {
+  const user = await this.findOneAndDelete({ _id: userId }).setOptions({ withDeleted: true });
+  if (user) {
+    await postModel.deleteMany({ id_owner: user._id }).setOptions({ withDeleted: true });
+    await storyModel.deleteMany({ id_owner: user._id }).setOptions({ withDeleted: true });
+  }
+  return user;
+};
+
+userSchema.pre('save', async function preSave() {
+  if (this.isModified('password') && this.password && !this.password.startsWith('$2')) {
+    this.password = await bcrypt.hash(this.password, 12);
+  }
+
+  if (this.isModified('isDeleted') && this.isDeleted && !this.deletedAt) {
+    this.deletedAt = new Date();
+  }
+});
+
+userSchema.post('save', function postSave(doc) {
+  console.log(`User saved: ${doc._id.toString()}`);
+});
+
+(userSchema.pre as unknown as (name: string, fn: (next: () => void, docs: IUserDocument[]) => Promise<void>) => void)(
+  'insertMany',
+  async function preInsertMany(next, docs) {
+  await Promise.all(
+    docs.map(async (doc) => {
+      if (doc.password && !doc.password.startsWith('$2')) {
+        doc.password = await bcrypt.hash(doc.password, 12);
+      }
+      if (doc.isDeleted && !doc.deletedAt) doc.deletedAt = new Date();
+    })
+  );
+  next();
+}
+);
+
+userSchema.pre(/^find/, function preFindNotDeleted(
+  this: Query<unknown, IUserDocument>
+) {
+  if (!this.getOptions().withDeleted) {
+    this.where({ isDeleted: false });
+  }
+});
+
+export const userModel: IUserModel =
+  (mongoose.models['User'] as IUserModel | undefined) ||
+  mongoose.model<IUserDocument, IUserModel>('User', userSchema);
