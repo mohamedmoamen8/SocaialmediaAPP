@@ -1,0 +1,28 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.AWS_UPLOAD_VERIFY_SECRET = exports.AWS_S3_PUBLIC_BASE_URL = exports.AWS_S3_UPLOAD_PREFIX = exports.AWS_S3_BUCKET = exports.AWS_SECRET_ACCESS_KEY = exports.AWS_ACCESS_KEY_ID = exports.AWS_REGION = exports.Salt = exports.IV_LENGTH = exports.EncryptionKey = exports.FRONTEND_URL = exports.EMAIL_PASS = exports.EMAIL_USER = exports.GOOGLE_CLIENT_SECRET = exports.GOOGLE_CLIENT_ID = exports.REDIS_URL = exports.REFRESH_TOKEN_SECRET = exports.TOKEN_SECRET = exports.MONGO_URI = exports.PORT = void 0;
+const dotenv_1 = __importDefault(require("dotenv"));
+dotenv_1.default.config({ path: './config/.env' });
+exports.PORT = process.env.PORT;
+exports.MONGO_URI = process.env.MONGO_URI;
+exports.TOKEN_SECRET = process.env.TOKEN_SECRET;
+exports.REFRESH_TOKEN_SECRET = process.env.REFRESH_TOKEN_SECRET;
+exports.REDIS_URL = process.env.REDIS_URL;
+exports.GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+exports.GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
+exports.EMAIL_USER = process.env.EMAIL_USER;
+exports.EMAIL_PASS = process.env.EMAIL_PASS;
+exports.FRONTEND_URL = process.env.FRONTEND_URL;
+exports.EncryptionKey = process.env.EncryptionKey;
+exports.IV_LENGTH = Number(process.env.IV_LENGTH) || 16;
+exports.Salt = Number(process.env.Salt) || 10;
+exports.AWS_REGION = process.env.AWS_REGION;
+exports.AWS_ACCESS_KEY_ID = process.env.AWS_ACCESS_KEY_ID;
+exports.AWS_SECRET_ACCESS_KEY = process.env.AWS_SECRET_ACCESS_KEY;
+exports.AWS_S3_BUCKET = process.env.AWS_S3_BUCKET;
+exports.AWS_S3_UPLOAD_PREFIX = process.env.AWS_S3_UPLOAD_PREFIX || 'uploads';
+exports.AWS_S3_PUBLIC_BASE_URL = process.env.AWS_S3_PUBLIC_BASE_URL;
+exports.AWS_UPLOAD_VERIFY_SECRET = process.env.AWS_UPLOAD_VERIFY_SECRET;

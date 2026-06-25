@@ -4,6 +4,7 @@ import { SuccessRes } from '../../utils/errorHandle/sucess.res';
 import { authentication } from '../../middleware/auth.middleware';
 import { AppError } from '../../utils/errorHandle/resHandle';
 import postServices from './posts.services';
+import { emitFeedEvent, emitPostEvent, socketEvents } from '../../realtime/socket';
 import {
   addCommentSchema,
   commentIdSchema,
@@ -33,6 +34,7 @@ router.post('/', authentication, validation(createPostSchema), async (req, res, 
       id_owner: req.user._id,
     });
 
+    emitFeedEvent(socketEvents.postCreated, data.post);
     SuccessRes({ res, data, message: 'Post created', status: 201 });
   } catch (error) {
     next(error);
@@ -121,6 +123,7 @@ router.patch(
       };
       const data = await postServices.updatePost(payload);
 
+      emitPostEvent(payload.postId, socketEvents.postUpdated, data.post);
       SuccessRes({ res, data, message: 'Post updated' });
     } catch (error) {
       next(error);
@@ -131,12 +134,14 @@ router.patch(
 router.delete('/:postId', authentication, validation(postIdSchema), async (req, res, next) => {
   try {
     if (!req.user) throw new AppError('Unauthorized', 401);
+    const postId = getParam(req.params.postId, 'postId');
 
     const data = await postServices.deletePost({
-      postId: getParam(req.params.postId, 'postId'),
+      postId,
       userId: req.user._id,
     });
 
+    emitPostEvent(postId, socketEvents.postDeleted, { postId, userId: req.user._id });
     SuccessRes({ res, data, message: 'Post deleted' });
   } catch (error) {
     next(error);
@@ -166,12 +171,14 @@ router.delete(
 router.post('/:postId/like', authentication, validation(postIdSchema), async (req, res, next) => {
   try {
     if (!req.user) throw new AppError('Unauthorized', 401);
+    const postId = getParam(req.params.postId, 'postId');
 
     const data = await postServices.toggleLike({
-      postId: getParam(req.params.postId, 'postId'),
+      postId,
       userId: req.user._id,
     });
 
+    emitPostEvent(postId, socketEvents.postLiked, { postId, userId: req.user._id, ...data });
     SuccessRes({ res, data, message: data.message });
   } catch (error) {
     next(error);
@@ -185,13 +192,15 @@ router.post(
   async (req, res, next) => {
     try {
       if (!req.user) throw new AppError('Unauthorized', 401);
+      const postId = getParam(req.params.postId, 'postId');
 
       const data = await postServices.reactToPost({
-        postId: getParam(req.params.postId, 'postId'),
+        postId,
         userId: req.user._id,
         emoji: req.body.emoji,
       });
 
+      emitPostEvent(postId, socketEvents.postReacted, { postId, userId: req.user._id, ...data });
       SuccessRes({ res, data, message: 'Reaction saved' });
     } catch (error) {
       next(error);
@@ -202,12 +211,18 @@ router.post(
 router.delete('/:postId/react', authentication, validation(postIdSchema), async (req, res, next) => {
   try {
     if (!req.user) throw new AppError('Unauthorized', 401);
+    const postId = getParam(req.params.postId, 'postId');
 
     const data = await postServices.removeReaction({
-      postId: getParam(req.params.postId, 'postId'),
+      postId,
       userId: req.user._id,
     });
 
+    emitPostEvent(postId, socketEvents.postReactionRemoved, {
+      postId,
+      userId: req.user._id,
+      ...data,
+    });
     SuccessRes({ res, data, message: 'Reaction removed' });
   } catch (error) {
     next(error);
@@ -221,14 +236,21 @@ router.post(
   async (req, res, next) => {
     try {
       if (!req.user) throw new AppError('Unauthorized', 401);
+      const postId = getParam(req.params.postId, 'postId');
 
       const { text } = req.body as { text: string };
       const data = await postServices.addComment({
-        postId: getParam(req.params.postId, 'postId'),
+        postId,
         userId: req.user._id,
         text,
       });
 
+      emitPostEvent(postId, socketEvents.commentAdded, {
+        postId,
+        userId: req.user._id,
+        text,
+        ...data,
+      });
       SuccessRes({ res, data, message: 'Comment added' });
     } catch (error) {
       next(error);
@@ -243,14 +265,16 @@ router.patch(
   async (req, res, next) => {
     try {
       if (!req.user) throw new AppError('Unauthorized', 401);
+      const postId = getParam(req.params.postId, 'postId');
 
       const data = await postServices.updateComment({
-        postId: getParam(req.params.postId, 'postId'),
+        postId,
         commentId: getParam(req.params.commentId, 'commentId'),
         userId: req.user._id,
         text: req.body.text,
       });
 
+      emitPostEvent(postId, socketEvents.commentUpdated, { postId, comment: data.comment });
       SuccessRes({ res, data, message: 'Comment updated' });
     } catch (error) {
       next(error);
@@ -265,13 +289,21 @@ router.delete(
   async (req, res, next) => {
     try {
       if (!req.user) throw new AppError('Unauthorized', 401);
+      const postId = getParam(req.params.postId, 'postId');
+      const commentId = getParam(req.params.commentId, 'commentId');
 
       const data = await postServices.deleteComment({
-        postId: getParam(req.params.postId, 'postId'),
-        commentId: getParam(req.params.commentId, 'commentId'),
+        postId,
+        commentId,
         userId: req.user._id,
       });
 
+      emitPostEvent(postId, socketEvents.commentDeleted, {
+        postId,
+        commentId,
+        userId: req.user._id,
+        ...data,
+      });
       SuccessRes({ res, data, message: 'Comment deleted' });
     } catch (error) {
       next(error);
@@ -303,12 +335,14 @@ router.delete(
 router.post('/:postId/share', authentication, validation(postIdSchema), async (req, res, next) => {
   try {
     if (!req.user) throw new AppError('Unauthorized', 401);
+    const postId = getParam(req.params.postId, 'postId');
 
     const data = await postServices.sharePost({
-      postId: getParam(req.params.postId, 'postId'),
+      postId,
       userId: req.user._id,
     });
 
+    emitPostEvent(postId, socketEvents.postShared, { postId, userId: req.user._id, ...data });
     SuccessRes({ res, data, message: 'Post shared' });
   } catch (error) {
     next(error);

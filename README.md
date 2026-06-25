@@ -1,5 +1,62 @@
 # SocialMediaAPP
 
+## GraphQL and realtime API
+
+The backend now exposes GraphQL at:
+
+```text
+POST /graphql
+```
+
+Public GraphQL mutations:
+
+- `signup`
+- `login`
+
+Protected GraphQL queries and mutations use the same bearer access token as the
+REST API:
+
+```http
+Authorization: Bearer <accessToken>
+```
+
+Core protected GraphQL operations include:
+
+- Queries: `users`, `me`, `posts`, `feed`, `myPosts`, `post`, `dashboardSummary`
+- Mutations: `createPost`, `updatePost`, `deletePost`, `likePost`, `reactToPost`,
+  `removeReaction`, `addComment`, `updateComment`, `deleteComment`, `sharePost`
+
+Socket.IO is attached to the same HTTP server as Express. Clients connect with:
+
+```ts
+import { io } from 'socket.io-client';
+
+const socket = io(API_URL, {
+  auth: { token: accessToken },
+});
+```
+
+Authenticated sockets automatically join the global `feed` room and their own
+`user:<userId>` room. A client can subscribe to a focused post room:
+
+```ts
+socket.emit('post:join', postId);
+socket.emit('post:leave', postId);
+```
+
+Realtime social events:
+
+- `post:created`
+- `post:updated`
+- `post:deleted`
+- `post:liked`
+- `post:reacted`
+- `post:reaction:removed`
+- `comment:added`
+- `comment:updated`
+- `comment:deleted`
+- `post:shared`
+
 ## S3 image upload flow
 
 The repository does not include a frontend app, but the backend now exposes the
