@@ -109,4 +109,24 @@ router.delete('/me/hard', authentication, async (req, res, next) => {
   }
 });
 
+router.post('/:userId/follow', authentication, validation(userIdSchema), async (req, res, next) => {
+  try {
+    if (!req.user) throw new AppError('Unauthorized', 401);
+    const data = await userServices.followUser({ currentUserId: req.user._id, targetUserId: req.params.userId as string });
+    SuccessRes({ res, data, message: data.message });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.delete('/:userId/follow', authentication, validation(userIdSchema), async (req, res, next) => {
+  try {
+    if (!req.user) throw new AppError('Unauthorized', 401);
+    const data = await userServices.unfollowUser({ currentUserId: req.user._id, targetUserId: req.params.userId as string });
+    SuccessRes({ res, data, message: 'Unfollowed successfully' });
+  } catch (error) {
+    next(error);
+  }
+});
+
 export default router;

@@ -1,5 +1,5 @@
 import jwt from 'jsonwebtoken';
-import { TOKEN_SECRET } from '../config';
+import { TOKEN_SECRET,REFRESH_TOKEN_SECRET } from '../config';
 import { IUserPayload } from '../modules/users/user.types';
 import { AppError } from '../utils/errorHandle/resHandle';
 import { userModel } from '../db/models/user.models';
@@ -19,6 +19,20 @@ export const verifyAccessToken = async (token: string): Promise<IUserPayload> =>
   if (isBlacklisted) throw new AppError('Token invalidated, please login again', 401);
 
   const decoded = jwt.verify(token, TOKEN_SECRET) as IUserPayload;
+  const user = await userModel.findById(decoded._id).select('tokenVersion');
+  if (!user) throw new AppError('User not found', 404);
+
+  if (decoded.tokenVersion !== user.tokenVersion) {
+    throw new AppError('Session expired, please login again', 401);
+  }
+
+  return decoded;
+};
+export const verifyRefreshToken = async (token: string): Promise<IUserPayload> => {
+  const isBlacklisted = await redisClient.get(`blacklist_${token}`);
+  if (isBlacklisted) throw new AppError('Refresh token invalidated, please login again', 401);
+
+  const decoded = jwt.verify(token, REFRESH_TOKEN_SECRET) as IUserPayload;
   const user = await userModel.findById(decoded._id).select('tokenVersion');
   if (!user) throw new AppError('User not found', 404);
 

@@ -42,16 +42,25 @@ class PostServices {
     return { post };
   }
 
-  async getAllPosts() {
-    const posts = await this.populatePost(this.model.find());
-    return { posts };
+  async getAllPosts(page = 1, limit = 20) {
+    const skip = (page - 1) * limit;
+    const [posts, total] = await Promise.all([
+      this.populatePost(this.model.find()).skip(skip).limit(limit),
+      this.model.countDocuments(),
+    ]);
+    return { posts, pagination: { total, page, limit, pages: Math.ceil(total / limit) } };
   }
 
-  async getNewsFeed({ userId }: { userId: string }) {
-    const posts = await this.populatePost(
-      this.model.find({ id_owner: { $ne: new Types.ObjectId(userId) } })
-    );
-    return { posts };
+  async getNewsFeed({ userId, page = 1, limit = 20 }: { userId: string; page?: number; limit?: number }) {
+    const user = await userModel.findById(userId).select('following');
+    const following = user?.following ?? [];
+    const skip = (page - 1) * limit;
+
+    const [posts, total] = await Promise.all([
+      this.populatePost(this.model.find({ id_owner: { $in: following } })).skip(skip).limit(limit),
+      this.model.countDocuments({ id_owner: { $in: following } }),
+    ]);
+    return { posts, pagination: { total, page, limit, pages: Math.ceil(total / limit) } };
   }
 
   async getDashboardSummary() {
@@ -84,12 +93,14 @@ class PostServices {
     return { post };
   }
 
-  async getUserPosts({ userId }: { userId: string }) {
-    const posts = await this.populatePost(
-      this.model.find({ id_owner: new Types.ObjectId(userId) })
-    );
-
-    return { posts };
+  async getUserPosts({ userId, page = 1, limit = 20 }: { userId: string; page?: number; limit?: number }) {
+    const skip = (page - 1) * limit;
+    const filter = { id_owner: new Types.ObjectId(userId) };
+    const [posts, total] = await Promise.all([
+      this.populatePost(this.model.find(filter)).skip(skip).limit(limit),
+      this.model.countDocuments(filter),
+    ]);
+    return { posts, pagination: { total, page, limit, pages: Math.ceil(total / limit) } };
   }
 
   async updatePost({ postId, userId, title, body }: IUpdatePostInput) {

@@ -1,148 +1,88 @@
-import bcrypt from 'bcrypt';
-import mongoose, { Schema, Document, Model, Query, Types } from 'mongoose';
-import { IUser, UserRole, Gender, ProviderTypes } from '../../modules/users/user.types';
-import { postModel } from './posts.models';
-import { storyModel } from './stories.models';
+import { Model, Schema, Types, model, Document, Query } from 'mongoose';
+import { Gender, ProviderTypes } from '../../modules/users/user.types';
 
-
-export interface IUserDocument extends Omit<IUser, never>, Document {
-  _id: Types.ObjectId; 
+export interface IUser extends Document {
+  _id: Types.ObjectId;
+  firstName: string;
+  lastName: string;
+  email: string;
+  password?: string;
+  age?: number;
+  gender?: Gender;
+  provider: ProviderTypes;
+  isEmailConfirmed: boolean;
+  emailOtp: string | null;
+  emailOTPExpires: Date | null;
+  lastOtpSentAt?: Date;
+  otpResendCount: number;
+  tokenVersion: number;
+  role: number;
+  isTwoFactorEnabled?: boolean;
+  twoFactorOTP?: string | null;
+  twoFactorOTPExpires?: Date | null;
+  resetPasswordToken: string | null;
+  resetPasswordTokenExpires: Date | null;
+  profilePicture?: string;
+  coverPictures: string[];
+  following: Types.ObjectId[];
+  followers: Types.ObjectId[];
   isDeleted: boolean;
-  deletedAt: Date | null;
-  softDelete(): Promise<IUserDocument>;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
-interface IUserModel extends Model<IUserDocument> {
-  softDeleteById(userId: string | Types.ObjectId): Promise<IUserDocument | null>;
-  hardDeleteById(userId: string | Types.ObjectId): Promise<IUserDocument | null>;
+export interface IUserModel extends Model<IUser> {
+  softDeleteById(id: string): Promise<IUser | null>;
+  hardDeleteById(id: string): Promise<IUser | null>;
 }
 
-const userSchema = new Schema<IUserDocument, IUserModel>(
+const userSchema = new Schema<IUser>(
   {
-    firstName: { type: String, required: true, minlength: 2, maxlength: 50 },
-    lastName: { type: String, required: true, minlength: 3, maxlength: 50 },
-    email: { type: String, required: true, unique: true, lowercase: true, trim: true },
-    password: { type: String, minlength: 8 },
+    firstName: { type: String, required: true },
+    lastName: { type: String, required: true },
+    email: { type: String, required: true, unique: true },
+    password: { type: String },
     age: { type: Number },
-    gender: {
-      type: Number,
-      enum: Object.values(Gender).filter((v) => typeof v === 'number'),
-      default: Gender.male,
-    },
-    role: {
-      type: Number,
-      enum: Object.values(UserRole).filter((v) => typeof v === 'number'),
-      default: UserRole.user,
-    },
-    provider: {
-      type: String,
-      enum: Object.values(ProviderTypes),
-      default: ProviderTypes.system,
-    },
-    isEmailConfirmed: { type: Boolean, default: false },
-    profilePicture: { type: String, default: null },
-    coverPictures: { type: [String], default: [] },
+    gender: { type: String, enum: Object.values(Gender) },
     tokenVersion: { type: Number, default: 0 },
+    coverPictures: [String],
+    isDeleted: { type: Boolean, default: false },
+    provider: { type: String, enum: Object.values(ProviderTypes), required: true },
+    isEmailConfirmed: { type: Boolean, default: false },
+    emailOtp: { type: String, default: null },
+    emailOTPExpires: { type: Date, default: null },
+    lastOtpSentAt: { type: Date },
+    otpResendCount: { type: Number, default: 0 },
+    role: { type: Number, default: 0 },
     isTwoFactorEnabled: { type: Boolean, default: false },
     twoFactorOTP: { type: String, default: null },
     twoFactorOTPExpires: { type: Date, default: null },
     resetPasswordToken: { type: String, default: null },
     resetPasswordTokenExpires: { type: Date, default: null },
-    emailOtp: { type: String, default: null },
-    emailOTPExpires: { type: Date, default: null },
-    lastOtpSentAt: { type: Date, default: null },
-    otpResendCount: { type: Number, default: 0 },
-    isDeleted: { type: Boolean, default: false },
-    deletedAt: { type: Date, default: null },
+    profilePicture: { type: String },
+    following: [{ type: Schema.Types.ObjectId, ref: 'User', default: [] }],
+    followers: [{ type: Schema.Types.ObjectId, ref: 'User', default: [] }],
   },
-  {  timestamps: true,
-  toJSON: { virtuals: true },
-  toObject: { virtuals: true }
-   }
+  { timestamps: true }
 );
 
-userSchema.index(
-  { createdAt: 1 },
-  {
-    expireAfterSeconds: 86400,
-    partialFilterExpression: { isEmailConfirmed: false },
-  }
+userSchema.pre<Query<IUser, any>>('find', function () {
+  this.where({ isDeleted: false });
+});
+
+userSchema.pre<Query<IUser, any>>('findOne', function () {
+  this.where({ isDeleted: false });
+});
+
+userSchema.statics.softDeleteById = async function (id: string) {
+  return this.findByIdAndUpdate(id, { isDeleted: true }, { new: true });
+};
+
+userSchema.statics.hardDeleteById = async function (id:string) {
+  return this.findByIdAndDelete(id);
+};
+
+export const userModel: IUserModel = model<IUser, IUserModel>(
+  'User',
+  userSchema
 );
-
-userSchema.virtual('fullName').get(function () {
-  return `${this.firstName} ${this.lastName}`;
-});
-
-userSchema.methods.softDelete = async function softDelete(): Promise<IUserDocument> {
-  this.isDeleted = true;
-  this.deletedAt = new Date();
-  await postModel.updateMany(
-    { id_owner: this._id },
-    { $set: { isDeleted: true, deletedAt: new Date() } }
-  ).setOptions({ withDeleted: true });
-  await storyModel.updateMany(
-    { id_owner: this._id },
-    { $set: { isDeleted: true, deletedAt: new Date() } }
-  ).setOptions({ withDeleted: true });
-  return await this.save();
-};
-
-userSchema.statics.softDeleteById = async function softDeleteById(
-  userId: string | Types.ObjectId
-) {
-  const user = await this.findById(userId);
-  if (!user) return null;
-  return await user.softDelete();
-};
-
-userSchema.statics.hardDeleteById = async function hardDeleteById(
-  userId: string | Types.ObjectId
-) {
-  const user = await this.findOneAndDelete({ _id: userId }).setOptions({ withDeleted: true });
-  if (user) {
-    await postModel.deleteMany({ id_owner: user._id }).setOptions({ withDeleted: true });
-    await storyModel.deleteMany({ id_owner: user._id }).setOptions({ withDeleted: true });
-  }
-  return user;
-};
-
-userSchema.pre('save', async function preSave() {
-  if (this.isModified('password') && this.password && !this.password.startsWith('$2')) {
-    this.password = await bcrypt.hash(this.password, 12);
-  }
-
-  if (this.isModified('isDeleted') && this.isDeleted && !this.deletedAt) {
-    this.deletedAt = new Date();
-  }
-});
-
-userSchema.post('save', function postSave(doc) {
-  console.log(`User saved: ${doc._id.toString()}`);
-});
-
-(userSchema.pre as unknown as (name: string, fn: (next: () => void, docs: IUserDocument[]) => Promise<void>) => void)(
-  'insertMany',
-  async function preInsertMany(next, docs) {
-  await Promise.all(
-    docs.map(async (doc) => {
-      if (doc.password && !doc.password.startsWith('$2')) {
-        doc.password = await bcrypt.hash(doc.password, 12);
-      }
-      if (doc.isDeleted && !doc.deletedAt) doc.deletedAt = new Date();
-    })
-  );
-  next();
-}
-);
-
-userSchema.pre(/^find/, function preFindNotDeleted(
-  this: Query<unknown, IUserDocument>
-) {
-  if (!this.getOptions().withDeleted) {
-    this.where({ isDeleted: false });
-  }
-});
-
-export const userModel: IUserModel =
-  (mongoose.models['User'] as IUserModel | undefined) ||
-  mongoose.model<IUserDocument, IUserModel>('User', userSchema);

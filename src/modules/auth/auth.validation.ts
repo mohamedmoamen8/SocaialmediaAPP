@@ -9,22 +9,18 @@ export type schemaType = {
 
 export const signupSchema: schemaType = {
   body: z.object({
-    username: z.string().min(5).max(100),
+    firstName: z.string().min(2).max(50),
+    lastName: z.string().min(2).max(50),
     email: z.string().email(),
     password: z.string().min(8),
-    repeatdpassword: z.string().min(8),
-    age: z.coerce.number().optional(),
-    gender: z.coerce.number().optional(),
-  }).refine((data)=>{
-     if(data.password !== data.repeatdpassword){
-      return false;
-     } else {return true
-     }
-    },
-     {
-      error: "Passwords don't match"})
+    confirmPassword: z.string().min(8),
+    age: z.coerce.number().min(13).max(120).optional(),
+    gender: z.coerce.number().min(0).max(1).optional(),
+  }).refine((data) => data.password === data.confirmPassword, {
+    message: "Passwords don't match",
+    path: ['confirmPassword'],
+  }),
 };
-
 export const loginSchema: schemaType = {
   body: z.object({
     email: z.string().email(),
@@ -57,5 +53,12 @@ export const resetPasswordSchema: schemaType = {
     email: z.string().email(),
     token: z.string(),
     newPassword: z.string().min(8),
+  }),
+};
+
+export const twoFASchema: schemaType = {
+  body: z.object({
+    email: z.string().email(),
+    otp: z.string().length(6),
   }),
 };

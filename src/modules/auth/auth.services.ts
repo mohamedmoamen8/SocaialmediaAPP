@@ -1,10 +1,14 @@
 import { userModel } from '../../db/models/user.models';
 import {
-  ISignupInput,
-  ILoginInput,
-  IResetPasswordInput,
-  IUser, IGoogleAuthInput
-} from '../users/user.types';
+  SignupDto,
+  LoginDto,
+  ResetPasswordDto,
+  ConfirmEmailDto,
+  ResendOtpDto,
+  ForgetPasswordDto,
+  LogoutDto,
+} from './auth.dto';
+import { IUser } from '../../db/models/user.models';
 import {
   
   NotFoundError,
@@ -19,8 +23,10 @@ import {
   REFRESH_TOKEN_SECRET,
   FRONTEND_URL,
 } from '../../config';
+import { verifyRefreshToken} from '../../security/authToken';
 import { sendOTPEmail, sendResetPasswordEmail } from '../../utils/emailService/email';
 import redisClient from '../../utils/redisClient';
+import { TokenPayload } from 'google-auth-library'; 
 import { Model } from 'mongoose';
 
 
@@ -28,7 +34,7 @@ class AuthServices {
   private readonly model: Model<IUser>
   private readonly tokenSecret: string;
   private readonly refreshTokenSecret: string;
-  private readonly frontendUrl: string;
+  private readonly frontendUrl: string; 
 
   constructor() {
     this.model = userModel;
@@ -68,26 +74,21 @@ class AuthServices {
   }
 
   
-  async signup({
-    firstName,
-    lastName,
-    email,
-    password,
-    age,
-    gender,
-  }: ISignupInput) {
-    const existingUser = await this.model.findOne({ email });
+  async signup(dto: SignupDto & { firstName: string; lastName: string; email: string; password: string; age?: number; gender?: number }) {
+    const { firstName, lastName, email, password, age, gender } = dto;
+    const existingUser = await this.model.findOne({ email: email });
     if (existingUser) throw new ConflictError('Email already exists');
 
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    const user = await this.model.create({
+    const user = new this.model({
       firstName,
       lastName,
       email,
       password: hashedPassword,
-      ...(age !== undefined && { age }),
-      ...(gender !== undefined && { gender }),
+      provider: 'system',
+      age: age,
+      gender: gender,
     });
 
     const otp = this.generateOTP();
@@ -99,14 +100,16 @@ class AuthServices {
 
     return { message: 'OTP sent to your email' };
   }
-  async googleAuth({
-    firstName,
-    lastName,
-    email,
-    isEmailConfirmed,
-  }: IGoogleAuthInput) {
-    let user = await this.model.findOne({ email });
+  async googleAuth(payload: TokenPayload) {
+    const { email, email_verified: isEmailConfirmed } = payload;
+    if (!email) throw new BadRequestError('Email not found in Google token');
 
+    const nameParts = (payload.name ?? '').split(' ');
+    const firstName = nameParts[0] || 'User';
+    const lastName = nameParts.slice(1).join(' ') || firstName;
+
+    let user = await this.model.findOne({ email });
+    
     if (user) {
       if (user.provider === 'system') {
         throw new BadRequestError('Use system login');
@@ -117,7 +120,7 @@ class AuthServices {
         lastName,
         email,
         provider: 'google',
-        isEmailConfirmed,
+        isEmailConfirmed: isEmailConfirmed ?? false,
       });
     }
 
@@ -128,9 +131,10 @@ class AuthServices {
     );
   }
 
-  async confirmEmail({ email, otp }: { email: string; otp: string }) {
+  async confirmEmail(dto: ConfirmEmailDto) {
+    const { email, otp } = dto as { email: string; otp: string };
     const user = await this.model
-      .findOne({ email })
+      .findOne({ email: email })
       .select('emailOtp emailOTPExpires isEmailConfirmed');
 
     if (!user) throw new NotFoundError('User not found');
@@ -149,9 +153,10 @@ class AuthServices {
   }
 
   
-  async resendOtp({ email }: { email: string }) {
+  async resendOtp(dto: ResendOtpDto) {
+    const { email } = dto as { email: string };
     const user = await this.model
-      .findOne({ email })
+      .findOne({ email: email })
       .select('isEmailConfirmed lastOtpSentAt otpResendCount emailOtp emailOTPExpires');
 
     if (!user) throw new NotFoundError('User not found');
@@ -183,9 +188,10 @@ class AuthServices {
   }
 
  
-  async login({ email, password }: ILoginInput) {
+  async login(dto: LoginDto) {
+    const { email, password } = dto as { email: string; password: string };
     const user = await this.model
-      .findOne({ email })
+      .findOne({ email: email })
       .select('password provider isEmailConfirmed isTwoFactorEnabled tokenVersion role');
 
     if (!user) throw new BadRequestError('Invalid credentials');
@@ -220,9 +226,10 @@ class AuthServices {
   
 
   
-  async forgetPassword({ email }: { email: string }) {
+  async forgetPassword(dto: ForgetPasswordDto) {
+    const { email } = dto as { email: string };
     const user = await this.model
-      .findOne({ email })
+      .findOne({ email: email })
       .select('email provider resetPasswordToken resetPasswordTokenExpires');
 
     if (!user) throw new NotFoundError('User not found');
@@ -244,11 +251,12 @@ class AuthServices {
   }
 
   
-  async resetPassword({ email, token, newPassword }: IResetPasswordInput) {
+  async resetPassword(dto: ResetPasswordDto) {
+    const { email, token, newPassword } = dto as { email: string; token: string; newPassword: string };
     const hashedToken = this.hashToken(token);
 
     const user = await this.model
-      .findOne({ email })
+      .findOne({ email: email })
       .select('resetPasswordToken resetPasswordTokenExpires tokenVersion password');
 
     if (!user) throw new NotFoundError('User not found');
@@ -272,13 +280,13 @@ class AuthServices {
   }
 
   
-  async logout({ token }: { token: string }) {
-    const decoded = jwt.decode(token) as { exp: number } | null;
+  async logout(dto: LogoutDto) {
+    const decoded = jwt.decode(dto.token) as { exp: number } | null;
     if (!decoded) throw new BadRequestError('Invalid token');
 
     const ttl = Math.ceil(decoded.exp - Date.now() / 1000);
     if (ttl > 0) {
-      await redisClient.setEx(`blacklist_${token}`, ttl, 'true');
+      await redisClient.setEx(`blacklist_${dto.token}`, ttl, 'true');
     }
 
     return { message: 'Logged out successfully' };
@@ -296,6 +304,38 @@ class AuthServices {
     await user.save();
 
     return { message: 'Logged out from all devices successfully' };
+  }
+  async refreshToken(refreshToken: string) {
+    const decoded = await verifyRefreshToken(refreshToken);
+
+    // one-time use: blacklist this refresh token so it can't be replayed
+    const payload = jwt.decode(refreshToken) as { exp: number } | null;
+    if (payload?.exp) {
+      const ttl = Math.ceil(payload.exp - Date.now() / 1000);
+      if (ttl > 0) {
+        await redisClient.setEx(`blacklist_${refreshToken}`, ttl, 'true');
+      }
+    }
+
+    return this.signTokens(decoded._id, decoded.tokenVersion, decoded.role);
+  }
+
+  async verifyTwoFactor(dto: { email: string; otp: string }) {
+    const user = await this.model
+      .findOne({ email: dto.email })
+      .select('twoFactorOTP twoFactorOTPExpires tokenVersion role');
+
+    if (!user) throw new NotFoundError('User not found');
+    if (user.twoFactorOTP !== dto.otp) throw new BadRequestError('Invalid OTP');
+    if (!user.twoFactorOTPExpires || Date.now() > user.twoFactorOTPExpires.getTime()) {
+      throw new BadRequestError('OTP expired');
+    }
+
+    user.twoFactorOTP = null;
+    user.twoFactorOTPExpires = null;
+    await user.save();
+
+    return this.signTokens(user._id.toString(), user.tokenVersion, user.role);
   }
 }
 

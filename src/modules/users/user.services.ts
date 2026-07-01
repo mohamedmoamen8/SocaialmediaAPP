@@ -1,20 +1,19 @@
 import bcrypt from 'bcrypt';
-import { Model } from 'mongoose';
-import { IUser, IUpdatePasswordInput, IUpdateUserInput } from './user.types';
+import { IUpdatePasswordInput, IUpdateUserInput } from './user.types';
 import { NotFoundError, BadRequestError } from '../../utils/errorHandle/resHandle';
-import { userModel, IUserDocument } from '../../db/models/user.models';
+import { userModel, IUser as IUserDocument, IUserModel } from '../../db/models/user.models';
 import { UserRepo } from '../../repo/DB.repo';
 
 
 
 class UserServices {
-  private readonly model: Model<IUserDocument>;
- private readonly repo = new UserRepo();
+  private readonly model: IUserModel;
+  private readonly repo = new UserRepo();
   constructor() {
     this.model = userModel;
   }
 
- async updatePassword({
+  async updatePassword({
     userId,
     currentPassword,
     newPassword,
@@ -39,12 +38,12 @@ class UserServices {
 
     return { message: 'Password updated successfully' };
   }
- async getAllUsers(): Promise<IUser[]> {
-  return await this.repo.findall('-password -emailOtp -twoFactorOTP -resetPasswordToken');
- }
- async getUserByEmail(email: string): Promise<IUser | null> {
-  return await this.repo.findByEmail(email, '-password -emailOtp -twoFactorOTP -resetPasswordToken');
- }
+  async getAllUsers(): Promise<IUserDocument[]> {
+    return await this.repo.findall('-password -emailOtp -twoFactorOTP -resetPasswordToken');
+  }
+  async getUserByEmail(email: string): Promise<IUserDocument | null> {
+    return await this.repo.findByEmail(email, '-password -emailOtp -twoFactorOTP -resetPasswordToken');
+  }
 
  async getUserById(userId: string) {
   const user = await this.model
@@ -88,6 +87,35 @@ class UserServices {
   const user = await userModel.hardDeleteById(userId);
   if (!user) throw new NotFoundError('User not found');
   return { message: 'User permanently deleted successfully' };
+ }
+
+ async followUser({ currentUserId, targetUserId }: { currentUserId: string; targetUserId: string }) {
+  if (currentUserId === targetUserId) throw new BadRequestError('You cannot follow yourself');
+
+  const [current, target] = await Promise.all([
+    this.model.findById(currentUserId),
+    this.model.findById(targetUserId),
+  ]);
+
+  if (!current || !target) throw new NotFoundError('User not found');
+
+  const alreadyFollowing = current.following.some(id => id.toString() === targetUserId);
+  if (alreadyFollowing) return { message: 'Already following' };
+
+  await Promise.all([
+    this.model.findByIdAndUpdate(currentUserId, { $addToSet: { following: targetUserId } }),
+    this.model.findByIdAndUpdate(targetUserId, { $addToSet: { followers: currentUserId } }),
+  ]);
+
+  return { message: 'Followed successfully' };
+ }
+
+ async unfollowUser({ currentUserId, targetUserId }: { currentUserId: string; targetUserId: string }) {
+  await Promise.all([
+    this.model.findByIdAndUpdate(currentUserId, { $pull: { following: targetUserId } }),
+    this.model.findByIdAndUpdate(targetUserId, { $pull: { followers: currentUserId } }),
+  ]);
+  return { message: 'Unfollowed successfully' };
  }
 
 }

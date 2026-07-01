@@ -17,31 +17,31 @@ export enum ProviderTypes {
 
 export interface IUser {
   
-  firstName: string;
-  lastName: string;
-  email: string;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
   password?: string;
   age?: number;
   gender?: Gender;
-  role: UserRole;
-  provider: ProviderTypes;
-  isEmailConfirmed: boolean;
+  role?: UserRole;
+  provider?: ProviderTypes;
+  isEmailConfirmed?: boolean;
   profilePicture?: string;
-  coverPictures: string[];
-  tokenVersion: number;
-  isTwoFactorEnabled: boolean;
+  coverPictures?: string[];
+  tokenVersion?: number;
+  isTwoFactorEnabled?: boolean;
   twoFactorOTP?: string | null;
   twoFactorOTPExpires?: Date | null;
   resetPasswordToken?: string | null;
   resetPasswordTokenExpires?: Date | null;
   lastOtpSentAt?: Date | null;
-  otpResendCount: number;
+  otpResendCount?: number;
   emailOtp?: string | null;
   emailOTPExpires?: Date | null;
-  isDeleted: boolean;
+  isDeleted?: boolean;
   deletedAt?: Date | null;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 export type HUser =HydratedDocument<IUser>;
 export interface signupBodyDTO{

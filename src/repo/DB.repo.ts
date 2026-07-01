@@ -1,6 +1,5 @@
 import { HydratedDocument, Model,ProjectionType,QueryFilter,QueryOptions,Types } from "mongoose";
-import { userModel } from "../db/models/user.models";
-import { IUser } from "../modules/users/user.types";
+import { IUser, userModel } from "../db/models/user.models";
 
 export class DBRepo <TDocument>{
     constructor(public model: Model<TDocument>) {

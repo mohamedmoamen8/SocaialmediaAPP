@@ -20,13 +20,18 @@ class StoryServices {
     return { story };
   }
 
-  async getActiveStories() {
-    const stories = await this.model
-      .find()
-      .populate('id_owner', 'firstName lastName profilePicture')
-      .sort({ createdAt: -1 });
-
-    return { stories };
+  async getActiveStories(page = 1, limit = 20) {
+    const skip = (page - 1) * limit;
+    const [stories, total] = await Promise.all([
+      this.model
+        .find()
+        .populate('id_owner', 'firstName lastName profilePicture')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      this.model.countDocuments(),
+    ]);
+    return { stories, pagination: { total, page, limit, pages: Math.ceil(total / limit) } };
   }
 
   async getMyStories({ userId }: { userId: string }) {

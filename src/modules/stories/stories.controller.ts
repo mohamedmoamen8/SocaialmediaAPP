@@ -29,9 +29,11 @@ router.post('/', authentication, validation(createStorySchema), async (req, res,
   }
 });
 
-router.get('/', authentication, async (_req, res, next) => {
+router.get('/', authentication, async (req, res, next) => {
   try {
-    const data = await storyServices.getActiveStories();
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 20;
+    const data = await storyServices.getActiveStories(page, limit);
     SuccessRes({ res, data, message: 'Stories retrieved' });
   } catch (error) {
     next(error);

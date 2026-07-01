@@ -4,7 +4,7 @@ import { SuccessRes } from '../../utils/errorHandle/sucess.res';
 import { authentication } from '../../middleware/auth.middleware';
 import { AppError } from '../../utils/errorHandle/resHandle';
 import postServices from './posts.services';
-import { emitFeedEvent, emitPostEvent, socketEvents } from '../../realtime/socket';
+import { emitFeedEvent, emitPostEvent } from '../../socket';
 import {
   addCommentSchema,
   commentIdSchema,
@@ -15,6 +15,19 @@ import {
   updatePostSchema,
   userIdParamSchema,
 } from './posts.validation';
+
+const socketEvents = {
+  postCreated: 'post:created',
+  postUpdated: 'post:updated',
+  postDeleted: 'post:deleted',
+  postLiked: 'post:liked',
+  postReacted: 'post:reacted',
+  postReactionRemoved: 'post:reaction-removed',
+  commentAdded: 'comment:added',
+  commentUpdated: 'comment:updated',
+  commentDeleted: 'comment:deleted',
+  postShared: 'post:shared',
+};
 
 const router = Router();
 
@@ -41,9 +54,11 @@ router.post('/', authentication, validation(createPostSchema), async (req, res, 
   }
 });
 
-router.get('/', authentication, async (_req, res, next) => {
+router.get('/', authentication, async (req, res, next) => {
   try {
-    const data = await postServices.getAllPosts();
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 20;
+    const data = await postServices.getAllPosts(page, limit);
     SuccessRes({ res, data, message: 'Posts retrieved' });
   } catch (error) {
     next(error);
@@ -53,7 +68,9 @@ router.get('/', authentication, async (_req, res, next) => {
 router.get('/feed', authentication, async (req, res, next) => {
   try {
     if (!req.user) throw new AppError('Unauthorized', 401);
-    const data = await postServices.getNewsFeed({ userId: req.user._id });
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 20;
+    const data = await postServices.getNewsFeed({ userId: req.user._id, page, limit });
     SuccessRes({ res, data, message: 'News feed retrieved' });
   } catch (error) {
     next(error);
@@ -72,7 +89,9 @@ router.get('/dashboard/summary', authentication, async (_req, res, next) => {
 router.get('/my-posts', authentication, async (req, res, next) => {
   try {
     if (!req.user) throw new AppError('Unauthorized', 401);
-    const data = await postServices.getUserPosts({ userId: req.user._id });
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 20;
+    const data = await postServices.getUserPosts({ userId: req.user._id, page, limit });
     SuccessRes({ res, data, message: 'Your posts retrieved' });
   } catch (error) {
     next(error);
@@ -85,8 +104,12 @@ router.get(
   validation(userIdParamSchema),
   async (req, res, next) => {
     try {
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 20;
       const data = await postServices.getUserPosts({
         userId: getParam(req.params.userId, 'userId'),
+        page,
+        limit,
       });
       SuccessRes({ res, data, message: 'Profile posts retrieved' });
     } catch (error) {
